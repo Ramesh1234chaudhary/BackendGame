@@ -1,10 +1,10 @@
 import express from 'express';
 import QRCode from 'qrcode';
-import { authenticate } from './middleware/auth.js';
-import User from './models/User.js';
-import DepositRequest from './models/DepositRequest.js';
-import Transaction from './models/Transaction.js';
-import { notifyAdminDeposit } from './utils/notifications.js';
+import { authenticate } from '../middleware/auth.js';
+import User from '../models/User.js';
+import DepositRequest from '../models/DepositRequest.js';
+import Transaction from '../models/Transaction.js';
+import { notifyAdminDeposit } from '../utils/notifications.js';
 
 const router = express.Router();
 
