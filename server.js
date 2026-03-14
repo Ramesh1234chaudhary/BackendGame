@@ -116,6 +116,11 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Warmup endpoint to keep server awake on Render
+app.get('/api/warmup', (req, res) => {
+  res.json({ status: 'ok', warmup: true });
+});
+
 // MongoDB connection with retry logic
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/boxpickgame';
 

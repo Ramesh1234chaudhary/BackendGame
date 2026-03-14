@@ -22,6 +22,12 @@ const AdminSecretLogin = () => {
     setError('');
 
     try {
+      // Warmup server to avoid cold start delay on Render free tier
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      if (apiUrl) {
+        await fetch(apiUrl.replace('/api', '/api/warmup')).catch(() => {});
+      }
+      
       const { data } = await authAPI.adminLogin(email, password);
       login(data.token, data.user);
       navigate('/admin');
