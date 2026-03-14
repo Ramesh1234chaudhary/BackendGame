@@ -1,7 +1,7 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
-import PlinkoGame from '../models/PlinkoGame.js';
-import User from '../models/User.js';
+import { authenticate } from './middleware/auth.js';
+import PlinkoGame from './models/PlinkoGame.js';
+import User from './models/User.js';
 
 const router = express.Router();
 
@@ -49,7 +49,7 @@ const generateWeightedSlot = (numRows) => {
 };
 
 // Play Plinko game
-router.post('/plinko/play', authenticate, async (req, res) => {
+router.post('/play', authenticate, async (req, res) => {
   try {
     const userId = req.userId;
     const { betAmount, rows = 8 } = req.body;
@@ -121,7 +121,7 @@ router.post('/plinko/play', authenticate, async (req, res) => {
 });
 
 // Get Plinko game history
-router.get('/plinko/history', authenticate, async (req, res) => {
+router.get('/history', authenticate, async (req, res) => {
   try {
     const userId = req.userId;
     const { page = 1, limit = 20 } = req.query;
@@ -145,7 +145,7 @@ router.get('/plinko/history', authenticate, async (req, res) => {
 });
 
 // Get Plinko leaderboard (top winners)
-router.get('/plinko/leaderboard', async (req, res) => {
+router.get('/leaderboard', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
     
@@ -190,7 +190,7 @@ router.get('/plinko/leaderboard', async (req, res) => {
 });
 
 // Get recent Plinko wins for display
-router.get('/plinko/recent-wins', async (req, res) => {
+router.get('/recent-wins', async (req, res) => {
   try {
     const { limit = 10 } = req.query;
     

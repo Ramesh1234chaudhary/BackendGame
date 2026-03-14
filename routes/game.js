@@ -1,8 +1,8 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
-import User from '../models/User.js';
-import GameHistory from '../models/GameHistory.js';
-import Transaction from '../models/Transaction.js';
+import { authenticate } from './middleware/auth.js';
+import User from './models/User.js';
+import GameHistory from './models/GameHistory.js';
+import Transaction from './models/Transaction.js';
 
 const router = express.Router();
 
