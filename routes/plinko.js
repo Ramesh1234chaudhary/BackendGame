@@ -6,14 +6,14 @@ import User from '../models/User.js';
 const router = express.Router();
 
 // Allowed bet amounts
-const ALLOWED_BETS = [10, 20, 100];
+const ALLOWED_BETS = [5, 10, 20];
 
-// Plinko multiplier configuration - only 0.5x and 1x (users mostly lose)
+// Plinko multiplier configuration - 0.5x, 1x, 2x only
 const PLINKO_MULTIPLIERS = {
-  8: [0.5, 0.5, 0.5, 1, 1, 1, 0.5, 0.5, 0.5],      // 9 slots - mostly 0.5x
-  10: [0.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5],  // 11 slots
-  12: [0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], // 13 slots
-  16: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] // 17 slots
+  8: [0.5, 0.5, 1, 1, 2, 1, 1, 0.5, 0.5],      // 9 slots
+  10: [0.5, 0.5, 0.5, 1, 1, 2, 1, 1, 0.5, 0.5, 0.5],  // 11 slots
+  12: [0.5, 0.5, 0.5, 1, 1, 1, 2, 1, 1, 0.5, 0.5, 0.5, 0.5], // 13 slots
+  16: [0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 2, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5] // 17 slots
 };
 
 // Generate slot - users mostly lose

@@ -54,7 +54,7 @@ const Plinko = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
   
-  const [betAmount, setBetAmount] = useState(100);
+  const [betAmount, setBetAmount] = useState(10);
   const [rows, setRows] = useState(8);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -401,7 +401,7 @@ const Plinko = () => {
     }
   };
 
-  const presetBets = [10, 20, 100];
+  const presetBets = [5, 10, 20];
   const rowOptions = [8, 10, 12, 16];
 
   return (
