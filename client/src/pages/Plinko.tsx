@@ -401,7 +401,7 @@ const Plinko = () => {
     }
   };
 
-  const presetBets = [10, 50, 100, 500, 1000];
+  const presetBets = [10, 20, 100];
   const rowOptions = [8, 10, 12, 16];
 
   return (

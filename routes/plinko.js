@@ -5,28 +5,36 @@ import User from '../models/User.js';
 
 const router = express.Router();
 
-// Plinko multiplier configuration for different row counts
-// Higher multipliers in center, lower at edges
+// Allowed bet amounts
+const ALLOWED_BETS = [10, 20, 100];
+
+// Plinko multiplier configuration - only 0.5x and 1x (users mostly lose)
 const PLINKO_MULTIPLIERS = {
-  8: [0.5, 1, 2, 5, 10, 5, 2, 1, 0.5],      // 9 slots
-  10: [0.2, 0.5, 1, 2, 5, 10, 5, 2, 1, 0.5, 0.2],  // 11 slots
-  12: [0.1, 0.2, 0.5, 1, 2, 5, 10, 5, 2, 1, 0.5, 0.2, 0.1], // 13 slots
-  16: [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05] // 17 slots
+  8: [0.5, 0.5, 0.5, 1, 1, 1, 0.5, 0.5, 0.5],      // 9 slots - mostly 0.5x
+  10: [0.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5],  // 11 slots
+  12: [0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], // 13 slots
+  16: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] // 17 slots
 };
 
-// Weighted probability for each slot - center slots have lower probability
-const generateWeightedSlot = (numRows) => {
+// Generate slot - users mostly lose
+const generateWeightedSlot = (numRows, forceLose = false) => {
   const slots = PLINKO_MULTIPLIERS[numRows] || PLINKO_MULTIPLIERS[8];
   const numSlots = slots.length;
   
-  // Create weighted array - center has more weight
+  // If user has 300 or more, force them to lose
+  if (forceLose) {
+    // Return edge slot with 0.5x multiplier
+    return 0;
+  }
+  
+  // Create weighted array - edges have higher weight (lose more)
   const weights = [];
   const center = Math.floor(numSlots / 2);
   
   for (let i = 0; i < numSlots; i++) {
-    // Distance from center determines weight (closer to center = higher weight)
+    // Edges have much higher weight (lose more)
     const distance = Math.abs(i - center);
-    const weight = Math.pow(1 / (distance + 1), 2) * 100;
+    const weight = distance > 0 ? Math.pow(3, distance) * 50 : 1;
     weights.push(weight);
   }
   
@@ -45,7 +53,7 @@ const generateWeightedSlot = (numRows) => {
     }
   }
   
-  return center; // Fallback to center
+  return 0; // Fallback to edge (lose)
 };
 
 // Play Plinko game
@@ -54,9 +62,9 @@ router.post('/play', authenticate, async (req, res) => {
     const userId = req.userId;
     const { betAmount, rows = 8 } = req.body;
     
-    // Validate bet amount
-    if (!betAmount || betAmount < 10) {
-      return res.status(400).json({ message: 'Minimum bet amount is ₹10' });
+    // Validate bet amount - only 10, 20, 100 allowed
+    if (!betAmount || !ALLOWED_BETS.includes(betAmount)) {
+      return res.status(400).json({ message: 'Invalid bet amount. Choose ₹10, ₹20, or ₹100' });
     }
     
     // Validate rows
@@ -75,17 +83,20 @@ router.post('/play', authenticate, async (req, res) => {
       return res.status(400).json({ message: 'Insufficient balance' });
     }
     
+    // Check if user has 300 or more - force them to lose
+    const shouldForceLose = user.walletBalance >= 300;
+    
     // Deduct bet amount
     user.walletBalance -= betAmount;
     await user.save();
     
-    // Generate slot using weighted probability
-    const slotIndex = generateWeightedSlot(rows);
+    // Generate slot - users mostly lose
+    const slotIndex = generateWeightedSlot(rows, shouldForceLose);
     const multiplier = PLINKO_MULTIPLIERS[rows][slotIndex];
     const reward = betAmount * multiplier;
     const isWin = multiplier >= 1;
     
-    // Update wallet if won
+    // Update wallet if won (only 1x)
     if (isWin) {
       user.walletBalance += reward;
       await user.save();
