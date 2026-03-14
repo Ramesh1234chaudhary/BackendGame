@@ -254,8 +254,10 @@ router.get('/stats', authenticate, requireAdmin, async (req, res) => {
     const pendingDeposits = await DepositRequest.countDocuments({ status: 'pending' });
     const pendingWithdrawals = await WithdrawRequest.countDocuments({ status: 'pending' });
     const totalUsers = await User.countDocuments();
-    const totalRevenue = await Transaction.aggregate([
-      { $match: { type: 'bet', status: 'completed' } },
+    
+    // Revenue based on actual deposits (real money)
+    const totalRevenue = await DepositRequest.aggregate([
+      { $match: { status: 'approved' } },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
 
