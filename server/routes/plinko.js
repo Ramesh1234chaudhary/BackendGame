@@ -1,0 +1,216 @@
+import express from 'express';
+import { authenticate } from '../middleware/auth.js';
+import PlinkoGame from '../models/PlinkoGame.js';
+import User from '../models/User.js';
+
+const router = express.Router();
+
+// Plinko multiplier configuration for different row counts
+// Higher multipliers in center, lower at edges
+const PLINKO_MULTIPLIERS = {
+  8: [0.5, 1, 2, 5, 10, 5, 2, 1, 0.5],      // 9 slots
+  10: [0.2, 0.5, 1, 2, 5, 10, 5, 2, 1, 0.5, 0.2],  // 11 slots
+  12: [0.1, 0.2, 0.5, 1, 2, 5, 10, 5, 2, 1, 0.5, 0.2, 0.1], // 13 slots
+  16: [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05] // 17 slots
+};
+
+// Weighted probability for each slot - center slots have lower probability
+const generateWeightedSlot = (numRows) => {
+  const slots = PLINKO_MULTIPLIERS[numRows] || PLINKO_MULTIPLIERS[8];
+  const numSlots = slots.length;
+  
+  // Create weighted array - center has more weight
+  const weights = [];
+  const center = Math.floor(numSlots / 2);
+  
+  for (let i = 0; i < numSlots; i++) {
+    // Distance from center determines weight (closer to center = higher weight)
+    const distance = Math.abs(i - center);
+    const weight = Math.pow(1 / (distance + 1), 2) * 100;
+    weights.push(weight);
+  }
+  
+  // Normalize weights
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const normalizedWeights = weights.map(w => w / totalWeight);
+  
+  // Select slot based on weights
+  const random = Math.random();
+  let cumulative = 0;
+  
+  for (let i = 0; i < normalizedWeights.length; i++) {
+    cumulative += normalizedWeights[i];
+    if (random <= cumulative) {
+      return i;
+    }
+  }
+  
+  return center; // Fallback to center
+};
+
+// Play Plinko game
+router.post('/plinko/play', authenticate, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { betAmount, rows = 8 } = req.body;
+    
+    // Validate bet amount
+    if (!betAmount || betAmount < 10) {
+      return res.status(400).json({ message: 'Minimum bet amount is ₹10' });
+    }
+    
+    // Validate rows
+    if (!PLINKO_MULTIPLIERS[rows]) {
+      return res.status(400).json({ message: 'Invalid row count. Choose 8, 10, 12, or 16' });
+    }
+    
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Check balance
+    if (user.walletBalance < betAmount) {
+      return res.status(400).json({ message: 'Insufficient balance' });
+    }
+    
+    // Deduct bet amount
+    user.walletBalance -= betAmount;
+    await user.save();
+    
+    // Generate slot using weighted probability
+    const slotIndex = generateWeightedSlot(rows);
+    const multiplier = PLINKO_MULTIPLIERS[rows][slotIndex];
+    const reward = betAmount * multiplier;
+    const isWin = multiplier >= 1;
+    
+    // Update wallet if won
+    if (isWin) {
+      user.walletBalance += reward;
+      await user.save();
+    }
+    
+    // Save game history
+    const game = new PlinkoGame({
+      userId,
+      betAmount,
+      rows,
+      selectedRow: rows,
+      slotIndex,
+      multiplier,
+      result: isWin ? 'win' : 'lose',
+      reward: isWin ? reward : 0
+    });
+    await game.save();
+    
+    res.json({
+      success: true,
+      slotIndex,
+      multiplier,
+      reward: isWin ? reward : 0,
+      result: isWin ? 'win' : 'lose',
+      newBalance: user.walletBalance,
+      betAmount,
+      rows
+    });
+  } catch (error) {
+    console.error('Plinko play error:', error);
+    res.status(500).json({ message: 'Error playing Plinko' });
+  }
+});
+
+// Get Plinko game history
+router.get('/plinko/history', authenticate, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { page = 1, limit = 20 } = req.query;
+    
+    const games = await PlinkoGame.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+    
+    const total = await PlinkoGame.countDocuments({ userId });
+    
+    res.json({
+      games,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page)
+    });
+  } catch (error) {
+    console.error('Plinko history error:', error);
+    res.status(500).json({ message: 'Error fetching history' });
+  }
+});
+
+// Get Plinko leaderboard (top winners)
+router.get('/plinko/leaderboard', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const leaderboard = await PlinkoGame.aggregate([
+      { $match: { result: 'win', reward: { $gt: 0 } } },
+      {
+        $group: {
+          _id: '$userId',
+          totalWinnings: { $sum: '$reward' },
+          gamesPlayed: { $sum: 1 },
+          lastWin: { $max: '$createdAt' }
+        }
+      },
+      { $sort: { totalWinnings: -1 } },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          _id: 0,
+          userId: '$_id',
+          name: { $concat: [{ $substr: ['$user.name', 0, 3] }, '***'] },
+          totalWinnings: 1,
+          gamesPlayed: 1,
+          lastWin: 1
+        }
+      }
+    ]);
+    
+    res.json({ leaderboard });
+  } catch (error) {
+    console.error('Plinko leaderboard error:', error);
+    res.status(500).json({ message: 'Error fetching leaderboard' });
+  }
+});
+
+// Get recent Plinko wins for display
+router.get('/plinko/recent-wins', async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    const recentWins = await PlinkoGame.find({ result: 'win', reward: { $gt: 0 } })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .populate('userId', 'name');
+    
+    res.json({ 
+      wins: recentWins.map(game => ({
+        userName: game.userId?.name ? game.userId.name.substring(0, 3) + '***' : 'User',
+        amount: game.reward,
+        multiplier: game.multiplier,
+        createdAt: game.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Recent wins error:', error);
+    res.status(500).json({ message: 'Error fetching recent wins' });
+  }
+});
+
+export default router;

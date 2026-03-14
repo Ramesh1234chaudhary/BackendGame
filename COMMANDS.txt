@@ -1,0 +1,9 @@
+# Check what branch you have
+git branch -a
+
+# If branch is "master" instead of "main", use this command:
+git push -u origin master
+
+# OR rename your local branch to main:
+git branch -M main
+git push -u origin main
